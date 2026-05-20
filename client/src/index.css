@@ -1,0 +1,44 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Manrope:wght@500;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 186 100% 98%;
+  --foreground: 197 50% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 197 50% 10%;
+  --muted: 180 35% 92%;
+  --muted-foreground: 197 20% 30%;
+  --border: 185 25% 82%;
+  --ring: 178 84% 32%;
+}
+
+.dark {
+  --background: 205 43% 10%;
+  --foreground: 178 38% 95%;
+  --card: 206 35% 13%;
+  --card-foreground: 180 35% 95%;
+  --muted: 206 22% 20%;
+  --muted-foreground: 185 19% 70%;
+  --border: 203 25% 28%;
+  --ring: 168 84% 50%;
+}
+
+body {
+  @apply bg-[hsl(var(--background))] text-[hsl(var(--foreground))] font-body;
+  background-image: radial-gradient(circle at 20% 20%, rgba(20, 184, 166, 0.17), transparent 30%), radial-gradient(circle at 80% 0%, rgba(6, 182, 212, 0.15), transparent 26%);
+}
+
+.compact body {
+  font-size: 15px;
+}
+
+.compact .card-surface {
+  border-radius: 0.9rem;
+}
+
+.card-surface {
+  @apply rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm;
+}

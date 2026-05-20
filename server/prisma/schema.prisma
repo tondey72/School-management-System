@@ -1,0 +1,1014 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== ENUMS =====================
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  VOID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+  PARTIAL
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  MOBILE_MONEY
+  CHEQUE
+  ONLINE
+}
+
+enum WorkflowStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ESCALATED
+}
+
+enum FeeType {
+  TUITION
+  BOARDING
+  TRANSPORT
+  EXAMINATION
+  LIBRARY
+  SPORTS
+  UNIFORM
+  ACTIVITY
+  TECHNOLOGY
+  HEALTH
+  ONE_TIME
+  CUSTOM
+}
+
+enum BillingCycle {
+  MONTHLY
+  TERM
+  ANNUAL
+  CUSTOM
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum ReconciliationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DISCREPANCY_FOUND
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum ReminderChannel {
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+}
+
+enum ReminderStatus {
+  SCHEDULED
+  SENT
+  FAILED
+  DELIVERED
+}
+
+enum ReportType {
+  BALANCE_SHEET
+  INCOME_STATEMENT
+  CASH_FLOW
+  TRIAL_BALANCE
+  GENERAL_LEDGER
+  ACCOUNTS_RECEIVABLE
+  EXPENSE_REPORT
+  REVENUE_ANALYSIS
+  BUDGET_VS_ACTUAL
+  FEE_COLLECTION
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  REVERSE
+  RECONCILE
+  EXPORT
+}
+
+model School {
+  id               String   @id @default(cuid())
+  name             String
+  logoUrl          String?
+  contactEmail     String?
+  schoolType       String
+  timezone         String   @default("UTC")
+  country          String?
+  currency         String   @default("KES")
+  financialYearEnd String   @default("12-31")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  users           User[]
+  students        Student[]
+  staff           Staff[]
+  classes         ClassRoom[]
+  subjects        Subject[]
+  exams           Exam[]
+  attendance      AttendanceRecord[]
+  studentInvoices StudentInvoice[]
+  payments        Payment[]
+  receipts        PaymentReceipt[]
+  payrolls        Payroll[]
+  timetables      TimetableEntry[]
+  notifications   Notification[]
+  workflows       WorkflowInstance[]
+  books           LibraryBook[]
+  hostelRooms     HostelRoom[]
+  buses           TransportBus[]
+  assets          Asset[]
+  guardians       Guardian[]
+  integrationKey  IntegrationKey[]
+
+  // Finance models
+  feeStructures       FeeStructure[]
+  feeAssignments      FeeAssignment[]
+  accounts            AccountingAccount[]
+  journalEntries      JournalEntry[]
+  ledgerTransactions  LedgerTransaction[]
+  bankAccounts        BankAccount[]
+  bankTransactions    BankTransaction[]
+  bankReconciliations BankReconciliation[]
+  expenses            Expense[]
+  budgets             Budget[]
+  paymentPlans        PaymentPlan[]
+  reminders           FinanceReminder[]
+  reports             FinancialReport[]
+  auditTrail          AuditTrail[]
+  vendors             Vendor[]
+  discounts           Discount[]
+  creditNotes         CreditNote[]
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  users     User[]
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id                String            @id @default(cuid())
+  schoolId          String
+  roleId            String
+  email             String            @unique
+  fullName          String
+  passwordHash      String
+  emailVerified     Boolean           @default(false)
+  isActive          Boolean           @default(true)
+  mfaEnabled        Boolean           @default(false)
+  refreshTokenHash  String?
+  preferencesJson   Json?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  school            School            @relation(fields: [schoolId], references: [id])
+  role              Role              @relation(fields: [roleId], references: [id])
+  notificationsSent Notification[]
+  expenseApprovals  ExpenseApproval[]
+  invoiceApprovals  InvoiceApproval[]
+}
+
+model Student {
+  id              String    @id @default(cuid())
+  schoolId        String
+  classRoomId     String?
+  studentCode     String?
+  admissionNo     String
+  firstName       String
+  lastName        String
+  email           String?
+  nationalId      String?
+  dateOfBirth     DateTime
+  gender          String?
+  address         String?
+  phone           String?
+  medicalNotes    String?
+  profilePhotoUrl String?
+  enrolledAt      DateTime  @default(now())
+  graduatedAt     DateTime?
+  alumni          Boolean   @default(false)
+
+  school            School             @relation(fields: [schoolId], references: [id])
+  classRoom         ClassRoom?         @relation(fields: [classRoomId], references: [id])
+  guardians         StudentGuardian[]
+  attendanceRecords AttendanceRecord[]
+  results           ExamResult[]
+  hostelAssignments HostelAssignment[]
+  busAssignments    StudentTransport[]
+
+  // Finance relations
+  invoices       StudentInvoice[]
+  payments       Payment[]
+  feeAssignments FeeAssignment[]
+  paymentPlans   PaymentPlan[]
+
+  @@unique([schoolId, admissionNo])
+}
+
+model Guardian {
+  id           String            @id @default(cuid())
+  schoolId     String
+  fullName     String
+  phone        String
+  email        String?
+  relationship String
+  school       School            @relation(fields: [schoolId], references: [id])
+  students     StudentGuardian[]
+}
+
+model StudentGuardian {
+  id         String   @id @default(cuid())
+  studentId  String
+  guardianId String
+  student    Student  @relation(fields: [studentId], references: [id])
+  guardian   Guardian @relation(fields: [guardianId], references: [id])
+
+  @@unique([studentId, guardianId])
+}
+
+model Staff {
+  id         String    @id @default(cuid())
+  schoolId   String
+  staffNo    String
+  fullName   String
+  email      String?
+  department String?
+  jobTitle   String?
+  joinedAt   DateTime  @default(now())
+  school     School    @relation(fields: [schoolId], references: [id])
+  payrolls   Payroll[]
+
+  @@unique([schoolId, staffNo])
+}
+
+model ClassRoom {
+  id               String           @id @default(cuid())
+  schoolId         String
+  name             String
+  stream           String?
+  gradeLevel       String
+  managerRole      String?
+  classTeacherName String?
+  school           School           @relation(fields: [schoolId], references: [id])
+  timetables       TimetableEntry[]
+  students         Student[]
+}
+
+model Subject {
+  id          String  @id @default(cuid())
+  schoolId    String
+  code        String
+  name        String
+  description String?
+  school      School  @relation(fields: [schoolId], references: [id])
+  exams       Exam[]
+
+  @@unique([schoolId, code])
+}
+
+model Exam {
+  id         String       @id @default(cuid())
+  schoolId   String
+  subjectId  String
+  title      String
+  examDate   DateTime
+  totalMarks Int
+  term       String
+  school     School       @relation(fields: [schoolId], references: [id])
+  subject    Subject      @relation(fields: [subjectId], references: [id])
+  results    ExamResult[]
+}
+
+model ExamResult {
+  id        String  @id @default(cuid())
+  examId    String
+  studentId String
+  marks     Float
+  grade     String
+  gpaPoints Float
+  exam      Exam    @relation(fields: [examId], references: [id])
+  student   Student @relation(fields: [studentId], references: [id])
+
+  @@unique([examId, studentId])
+}
+
+model AttendanceRecord {
+  id        String           @id @default(cuid())
+  schoolId  String
+  studentId String
+  date      DateTime
+  status    AttendanceStatus
+  method    String           @default("MANUAL")
+  school    School           @relation(fields: [schoolId], references: [id])
+  student   Student          @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, date])
+}
+
+model Payroll {
+  id         String    @id @default(cuid())
+  schoolId   String
+  staffId    String
+  month      String
+  grossPay   Decimal   @db.Decimal(12, 2)
+  deductions Decimal   @db.Decimal(12, 2)
+  netPay     Decimal   @db.Decimal(12, 2)
+  paidAt     DateTime?
+  school     School    @relation(fields: [schoolId], references: [id])
+  staff      Staff     @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, month])
+}
+
+// ===================== FINANCE MODELS =====================
+
+model FeeStructure {
+  id           String   @id @default(cuid())
+  schoolId     String
+  name         String
+  description  String?
+  academicYear String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  school      School             @relation(fields: [schoolId], references: [id])
+  feeItems    FeeStructureItem[]
+  assignments FeeAssignment[]
+
+  @@unique([schoolId, name, academicYear])
+}
+
+model FeeStructureItem {
+  id              String  @id @default(cuid())
+  feeStructureId  String
+  feeType         FeeType
+  name            String
+  amount          Decimal @db.Decimal(12, 2)
+  description     String?
+  isRequired      Boolean @default(true)
+  isRecurring     Boolean @default(false)
+  recurringMonths Int?
+
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+}
+
+model FeeAssignment {
+  id             String       @id @default(cuid())
+  schoolId       String
+  studentId      String
+  feeStructureId String
+  gradeLevel     String?
+  classRoomId    String?
+  academicYear   String
+  billingCycle   BillingCycle @default(TERM)
+  startDate      DateTime
+  endDate        DateTime?
+  discount       Decimal      @default(0) @db.Decimal(12, 2)
+  discountType   String       @default("FIXED") // FIXED, PERCENTAGE, SIBLING
+  totalAmount    Decimal      @db.Decimal(12, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id])
+  student      Student      @relation(fields: [studentId], references: [id])
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id])
+}
+
+model StudentInvoice {
+  id                String        @id @default(cuid())
+  schoolId          String
+  studentId         String
+  invoiceNo         String
+  referenceNo       String?
+  issueDate         DateTime
+  dueDate           DateTime
+  totalAmount       Decimal       @db.Decimal(12, 2)
+  discountAmount    Decimal       @default(0) @db.Decimal(12, 2)
+  taxAmount         Decimal       @default(0) @db.Decimal(12, 2)
+  netAmount         Decimal       @db.Decimal(12, 2)
+  paidAmount        Decimal       @default(0) @db.Decimal(12, 2)
+  outstandingAmount Decimal       @db.Decimal(12, 2)
+  status            InvoiceStatus @default(DRAFT)
+  billingCycle      BillingCycle  @default(TERM)
+  academicYear      String
+  term              String?
+  notes             String?
+  description       String?
+  createdBy         String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  school      School            @relation(fields: [schoolId], references: [id])
+  student     Student           @relation(fields: [studentId], references: [id])
+  lineItems   InvoiceLineItem[]
+  payments    Payment[]
+  creditNotes CreditNote[]
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  feeType     FeeType
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2)
+
+  invoice StudentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  schoolId          String
+  invoiceId         String
+  studentId         String
+  receiptNo         String?
+  amount            Decimal       @db.Decimal(12, 2)
+  paymentMethod     PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  reference         String? // Bank reference, check no, etc.
+  bankName          String?
+  bankTransactionId String?
+  notes             String?
+  paidAt            DateTime      @default(now())
+  processedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  school  School          @relation(fields: [schoolId], references: [id])
+  invoice StudentInvoice  @relation(fields: [invoiceId], references: [id])
+  student Student         @relation(fields: [studentId], references: [id])
+  receipt PaymentReceipt?
+}
+
+model PaymentReceipt {
+  id            String        @id @default(cuid())
+  schoolId      String
+  paymentId     String        @unique
+  receiptNo     String        @unique
+  receiptDate   DateTime      @default(now())
+  amount        Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod
+  remarks       String?
+  issuedBy      String?
+  pdfUrl        String?
+  emailSentAt   DateTime?
+  smsSentAt     DateTime?
+  createdAt     DateTime      @default(now())
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model CreditNote {
+  id           String    @id @default(cuid())
+  schoolId     String
+  invoiceId    String
+  creditNoteNo String    @unique
+  reason       String
+  amount       Decimal   @db.Decimal(12, 2)
+  issueDate    DateTime  @default(now())
+  createdBy    String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  school  School         @relation(fields: [schoolId], references: [id])
+  invoice StudentInvoice @relation(fields: [invoiceId], references: [id])
+}
+
+model Discount {
+  id            String    @id @default(cuid())
+  schoolId      String
+  name          String
+  description   String?
+  discountType  String // FIXED, PERCENTAGE, SIBLING, LOYALTY
+  discountValue Decimal   @db.Decimal(12, 2)
+  minAmount     Decimal?  @db.Decimal(12, 2)
+  maxAmount     Decimal?  @db.Decimal(12, 2)
+  startDate     DateTime
+  endDate       DateTime?
+  isActive      Boolean   @default(true)
+  priority      Int       @default(100)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id])
+}
+
+model PaymentPlan {
+  id                   String    @id @default(cuid())
+  schoolId             String
+  studentId            String
+  invoiceId            String?
+  planNo               String    @unique
+  totalAmount          Decimal   @db.Decimal(12, 2)
+  downPayment          Decimal   @default(0) @db.Decimal(12, 2)
+  numberOfInstallments Int
+  installmentAmount    Decimal   @db.Decimal(12, 2)
+  frequency            String // MONTHLY, WEEKLY, BI_WEEKLY
+  startDate            DateTime
+  firstInstallmentDate DateTime
+  lastInstallmentDate  DateTime?
+  isActive             Boolean   @default(true)
+  totalPaidAmount      Decimal   @default(0) @db.Decimal(12, 2)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  school       School                   @relation(fields: [schoolId], references: [id])
+  student      Student                  @relation(fields: [studentId], references: [id])
+  installments PaymentPlanInstallment[]
+}
+
+model PaymentPlanInstallment {
+  id             String    @id @default(cuid())
+  paymentPlanId  String
+  sequenceNumber Int
+  dueDate        DateTime
+  amount         Decimal   @db.Decimal(12, 2)
+  paidAmount     Decimal   @default(0) @db.Decimal(12, 2)
+  isPaid         Boolean   @default(false)
+  paidDate       DateTime?
+
+  paymentPlan PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+}
+
+// ===================== GENERAL LEDGER & ACCOUNTING =====================
+
+model AccountingAccount {
+  id              String      @id @default(cuid())
+  schoolId        String
+  accountCode     String
+  accountName     String
+  description     String?
+  accountType     AccountType
+  parentAccountId String? // For hierarchical chart of accounts
+  balance         Decimal     @default(0) @db.Decimal(14, 2)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  school             School              @relation(fields: [schoolId], references: [id])
+  journalEntries     JournalEntry[]
+  ledgerTransactions LedgerTransaction[]
+
+  @@unique([schoolId, accountCode])
+}
+
+model JournalEntry {
+  id          String        @id @default(cuid())
+  schoolId    String
+  journalNo   String
+  entryDate   DateTime
+  description String?
+  referenceNo String? // Invoice, Check, etc.
+  status      JournalStatus @default(DRAFT)
+  postedAt    DateTime?
+  postedBy    String?
+  createdBy   String?
+  approvedBy  String?
+  approvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  school              School              @relation(fields: [schoolId], references: [id])
+  transactions        LedgerTransaction[]
+  accountingAccount   AccountingAccount?  @relation(fields: [accountingAccountId], references: [id])
+  accountingAccountId String?
+
+  @@unique([schoolId, journalNo])
+}
+
+model LedgerTransaction {
+  id              String          @id @default(cuid())
+  schoolId        String
+  journalEntryId  String
+  accountId       String
+  transactionType TransactionType
+  amount          Decimal         @db.Decimal(14, 2)
+  description     String?
+  transactionDate DateTime
+  createdAt       DateTime        @default(now())
+
+  school       School            @relation(fields: [schoolId], references: [id])
+  journalEntry JournalEntry      @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      AccountingAccount @relation(fields: [accountId], references: [id])
+}
+
+// ===================== BANK & RECONCILIATION =====================
+
+model BankAccount {
+  id                String    @id @default(cuid())
+  schoolId          String
+  accountName       String
+  accountNumber     String
+  bankName          String
+  bankCode          String?
+  accountType       String // CHECKING, SAVINGS, etc.
+  currency          String    @default("KES")
+  balance           Decimal   @default(0) @db.Decimal(14, 2)
+  lastReconcileDate DateTime?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  school          School               @relation(fields: [schoolId], references: [id])
+  transactions    BankTransaction[]
+  reconciliations BankReconciliation[]
+
+  @@unique([schoolId, accountNumber])
+}
+
+model BankTransaction {
+  id              String    @id @default(cuid())
+  schoolId        String
+  bankAccountId   String
+  bankRefNo       String?
+  amount          Decimal   @db.Decimal(14, 2)
+  transactionType String // CREDIT, DEBIT
+  description     String
+  transactionDate DateTime
+  valueDate       DateTime?
+  isMatched       Boolean   @default(false)
+  matchedWith     String? // Reference to matched payment/invoice
+  createdAt       DateTime  @default(now())
+
+  school      School      @relation(fields: [schoolId], references: [id])
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+}
+
+model BankReconciliation {
+  id                   String               @id @default(cuid())
+  schoolId             String
+  bankAccountId        String
+  reconciliationDate   DateTime
+  bankStatementBalance Decimal              @db.Decimal(14, 2)
+  systemBalance        Decimal              @db.Decimal(14, 2)
+  discrepancy          Decimal              @db.Decimal(14, 2)
+  status               ReconciliationStatus @default(PENDING)
+  notes                String?
+  reconciledBy         String?
+  reconciledAt         DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  school      School      @relation(fields: [schoolId], references: [id])
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+}
+
+// ===================== EXPENSE MANAGEMENT =====================
+
+model Vendor {
+  id            String   @id @default(cuid())
+  schoolId      String
+  vendorNo      String
+  vendorName    String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  taxId         String?
+  paymentTerms  String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  school   School    @relation(fields: [schoolId], references: [id])
+  expenses Expense[]
+
+  @@unique([schoolId, vendorNo])
+}
+
+model Expense {
+  id          String        @id @default(cuid())
+  schoolId    String
+  vendorId    String?
+  expenseNo   String
+  description String
+  amount      Decimal       @db.Decimal(12, 2)
+  category    String // UTILITIES, REPAIRS, SUPPLIES, etc.
+  department  String?
+  receiptUrl  String?
+  status      ExpenseStatus @default(DRAFT)
+  submittedBy String?
+  submittedAt DateTime?
+  approvedBy  String?
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  school    School            @relation(fields: [schoolId], references: [id])
+  vendor    Vendor?           @relation(fields: [vendorId], references: [id])
+  approvals ExpenseApproval[]
+}
+
+model ExpenseApproval {
+  id            String    @id @default(cuid())
+  expenseId     String
+  approverId    String
+  approvalLevel Int
+  status        String // PENDING, APPROVED, REJECTED
+  comments      String?
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  expense  Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  approver User    @relation(fields: [approverId], references: [id])
+}
+
+// ===================== INVOICING & APPROVALS =====================
+
+model InvoiceApproval {
+  id            String    @id @default(cuid())
+  invoiceId     String
+  approverId    String
+  approvalLevel Int
+  status        String // PENDING, APPROVED, REJECTED
+  comments      String?
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  approver User @relation(fields: [approverId], references: [id])
+}
+
+// ===================== BUDGETING =====================
+
+model Budget {
+  id               String    @id @default(cuid())
+  schoolId         String
+  budgetName       String
+  budgetYear       String
+  department       String?
+  accountId        String?
+  budgetAmount     Decimal   @db.Decimal(14, 2)
+  spentAmount      Decimal   @default(0) @db.Decimal(14, 2)
+  encumberedAmount Decimal   @default(0) @db.Decimal(14, 2)
+  q1               Decimal   @db.Decimal(14, 2)
+  q2               Decimal   @db.Decimal(14, 2)
+  q3               Decimal   @db.Decimal(14, 2)
+  q4               Decimal   @db.Decimal(14, 2)
+  isActive         Boolean   @default(true)
+  approvedBy       String?
+  approvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id])
+}
+
+// ===================== REMINDERS & NOTIFICATIONS =====================
+
+model FinanceReminder {
+  id             String          @id @default(cuid())
+  schoolId       String
+  studentId      String?
+  invoiceId      String?
+  reminderType   String // OVERDUE, UPCOMING, FAILED_PAYMENT, etc.
+  channel        ReminderChannel
+  recipientEmail String?
+  recipientPhone String?
+  subject        String?
+  message        String
+  status         ReminderStatus  @default(SCHEDULED)
+  scheduledFor   DateTime
+  sentAt         DateTime?
+  failureReason  String?
+  retryCount     Int             @default(0)
+  maxRetries     Int             @default(3)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id])
+}
+
+// ===================== FINANCIAL REPORTING =====================
+
+model FinancialReport {
+  id          String     @id @default(cuid())
+  schoolId    String
+  reportType  ReportType
+  reportName  String
+  reportDate  DateTime
+  startDate   DateTime?
+  endDate     DateTime?
+  reportData  Json // JSON for flexible report structure
+  pdfUrl      String?
+  csvUrl      String?
+  generatedBy String?
+  generatedAt DateTime?
+  isScheduled Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id])
+}
+
+// ===================== AUDIT TRAIL =====================
+
+model AuditTrail {
+  id         String      @id @default(cuid())
+  schoolId   String
+  userId     String?
+  entityType String // INVOICE, PAYMENT, EXPENSE, etc.
+  entityId   String
+  action     AuditAction
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  notes      String?
+  createdAt  DateTime    @default(now())
+
+  school School @relation(fields: [schoolId], references: [id])
+}
+
+model TimetableEntry {
+  id          String    @id @default(cuid())
+  schoolId    String
+  classRoomId String
+  subject     String
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  room        String?
+  school      School    @relation(fields: [schoolId], references: [id])
+  classRoom   ClassRoom @relation(fields: [classRoomId], references: [id])
+}
+
+model Notification {
+  id       String   @id @default(cuid())
+  schoolId String
+  senderId String?
+  title    String
+  message  String
+  channel  String
+  audience String
+  sentAt   DateTime @default(now())
+  school   School   @relation(fields: [schoolId], references: [id])
+  sender   User?    @relation(fields: [senderId], references: [id])
+}
+
+model WorkflowInstance {
+  id          String         @id @default(cuid())
+  schoolId    String
+  workflowKey String
+  title       String
+  status      WorkflowStatus @default(PENDING)
+  currentStep String
+  slaDueAt    DateTime?
+  historyJson Json
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  school      School         @relation(fields: [schoolId], references: [id])
+}
+
+model LibraryBook {
+  id            String @id @default(cuid())
+  schoolId      String
+  isbn          String
+  title         String
+  author        String
+  totalCopies   Int
+  availableCopy Int
+  school        School @relation(fields: [schoolId], references: [id])
+
+  @@unique([schoolId, isbn])
+}
+
+model HostelRoom {
+  id          String             @id @default(cuid())
+  schoolId    String
+  roomNumber  String
+  capacity    Int
+  occupied    Int                @default(0)
+  school      School             @relation(fields: [schoolId], references: [id])
+  assignments HostelAssignment[]
+
+  @@unique([schoolId, roomNumber])
+}
+
+model HostelAssignment {
+  id        String     @id @default(cuid())
+  studentId String
+  roomId    String
+  startDate DateTime
+  endDate   DateTime?
+  student   Student    @relation(fields: [studentId], references: [id])
+  room      HostelRoom @relation(fields: [roomId], references: [id])
+}
+
+model TransportBus {
+  id          String             @id @default(cuid())
+  schoolId    String
+  plateNumber String
+  routeName   String
+  capacity    Int
+  gpsEnabled  Boolean            @default(false)
+  school      School             @relation(fields: [schoolId], references: [id])
+  assignments StudentTransport[]
+
+  @@unique([schoolId, plateNumber])
+}
+
+model StudentTransport {
+  id         String       @id @default(cuid())
+  studentId  String
+  busId      String
+  pickupStop String
+  dropStop   String
+  student    Student      @relation(fields: [studentId], references: [id])
+  bus        TransportBus @relation(fields: [busId], references: [id])
+
+  @@unique([studentId, busId])
+}
+
+model Asset {
+  id              String   @id @default(cuid())
+  schoolId        String
+  assetTag        String
+  name            String
+  category        String
+  purchaseDate    DateTime
+  purchaseValue   Decimal  @db.Decimal(12, 2)
+  depreciationPct Float
+  school          School   @relation(fields: [schoolId], references: [id])
+
+  @@unique([schoolId, assetTag])
+}
+
+model IntegrationKey {
+  id              String  @id @default(cuid())
+  schoolId        String
+  provider        String
+  clientId        String
+  encryptedSecret String
+  webhookUrl      String?
+  active          Boolean @default(true)
+  school          School  @relation(fields: [schoolId], references: [id])
+
+  @@unique([schoolId, provider])
+}
