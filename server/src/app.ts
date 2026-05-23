@@ -20,6 +20,19 @@ const allowedOrigins = new Set([
   "http://127.0.0.1:5173"
 ]);
 
+function isAllowedOrigin(origin: string): boolean {
+  if (allowedOrigins.has(origin) || origin.endsWith(".github.dev")) {
+    return true;
+  }
+
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
 app.use(helmet());
 app.use(
   cors({
@@ -29,7 +42,7 @@ app.use(
         return;
       }
 
-      if (allowedOrigins.has(origin) || origin.endsWith(".github.dev")) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
         return;
       }
