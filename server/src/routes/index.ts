@@ -48,10 +48,12 @@ apiRoutes.get("/health/live", (_req, res) => {
 apiRoutes.get("/health/ready", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    const redisStatus = await redis.ping();
+    if (redis) {
+      const redisStatus = await redis.ping();
 
-    if (redisStatus !== "PONG") {
-      throw new Error("Redis not ready");
+      if (redisStatus !== "PONG") {
+        throw new Error("Redis not ready");
+      }
     }
 
     res.json({ status: "ready", timestamp: new Date().toISOString() });

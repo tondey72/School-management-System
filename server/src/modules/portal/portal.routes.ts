@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { authenticate, authorize } from "../../middleware/auth.js";
 import { prisma } from "../../prisma/client.js";
@@ -369,9 +370,93 @@ portalRoutes.get("/fee-statements/pop-submissions", authenticate, async (req, re
   }
 });
 
+const feeStatementApprovalSchema = z.object({
+  fileName: z.string().min(2),
+  fileType: z.enum(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+  fileData: z.string().min(12),
+  notes: z.string().max(500).optional()
+});
+
+const assignmentSubmissionSchema = z.object({
+  fileName: z.string().min(2),
+  fileType: z.enum(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+  fileData: z.string().min(12),
+  notes: z.string().max(500).optional()
+});
+
 const verifyPopSchema = z.object({
   decision: z.enum(["APPROVED", "REJECTED"]),
   remarks: z.string().max(500).optional()
+});
+
+portalRoutes.post("/fee-statements/:invoiceId/approval-upload", authenticate, async (req, res, next) => {
+  try {
+    const payload = feeStatementApprovalSchema.parse(req.body);
+    const schoolId = req.auth!.schoolId;
+    const invoiceId = typeof req.params.invoiceId === "string" ? req.params.invoiceId : undefined;
+
+    if (!invoiceId) {
+      return res.status(400).json({ error: "Invalid invoice id" });
+    }
+
+    const invoice = await prisma.studentInvoice.findFirst({
+      where: { id: invoiceId, schoolId },
+      select: {
+        id: true,
+        studentId: true,
+        invoiceNo: true,
+        totalAmount: true,
+        netAmount: true
+      }
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Fee statement not found" });
+    }
+
+    const dataBytes = getDataBytes(payload.fileData);
+    if (dataBytes > maxProofPayloadBytes) {
+      return res.status(400).json({ error: "File is too large. Max allowed size is 2MB." });
+    }
+
+    const submission = await prisma.workflowInstance.create({
+      data: {
+        schoolId,
+        workflowKey: "fee-statement-approval",
+        title: `Fee Statement Approval ${invoice.invoiceNo}`,
+        status: "PENDING",
+        currentStep: "pending_accounts_approval",
+        historyJson: [
+          {
+            action: "submitted",
+            by: req.auth!.email,
+            at: new Date().toISOString(),
+            invoiceId: invoice.id,
+            studentId: invoice.studentId,
+            invoiceNo: invoice.invoiceNo,
+            totalAmount: invoice.totalAmount.toString(),
+            netAmount: invoice.netAmount.toString(),
+            fileName: payload.fileName,
+            fileType: payload.fileType,
+            fileData: payload.fileData,
+            notes: payload.notes ?? null,
+            approvalStatus: "PENDING",
+            approvalBy: null,
+            approvalAt: null,
+            approvalRemarks: null
+          }
+        ]
+      }
+    });
+
+    res.status(201).json({
+      id: submission.id,
+      message: "Fee statement approval document uploaded successfully. Pending accounts verification.",
+      status: submission.status
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 portalRoutes.post(
@@ -422,7 +507,7 @@ portalRoutes.post(
         data: {
           status: payload.decision,
           currentStep: payload.decision === "APPROVED" ? "verified_by_accounts" : "rejected_by_accounts",
-          historyJson: nextHistory
+          historyJson: nextHistory as Prisma.InputJsonValue
         }
       });
 
@@ -563,6 +648,237 @@ portalRoutes.post("/assignments", authenticate, authorize(["SUPER_ADMIN", "SCHOO
       }
     });
     res.status(201).json(assignment);
+  } catch (error) {
+    next(error);
+  }
+});
+
+portalRoutes.post("/fee-statements/approval-submissions/:id/verify", authenticate, authorize(["ACCOUNTANT", "SUPER_ADMIN", "SCHOOL_ADMIN"]), async (req, res, next) => {
+  try {
+    const payload = verifyPopSchema.parse(req.body);
+    const schoolId = req.auth!.schoolId;
+    const submissionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    if (!submissionId) {
+      return res.status(400).json({ error: "Invalid submission id" });
+    }
+
+    const existing = await prisma.workflowInstance.findFirst({
+      where: {
+        id: submissionId,
+        schoolId,
+        workflowKey: "fee-statement-approval"
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Fee statement approval submission not found" });
+    }
+
+    const previousHistory = Array.isArray(existing.historyJson)
+      ? existing.historyJson as Array<Record<string, unknown>>
+      : [];
+
+    const nextHistory = [
+      ...previousHistory,
+      {
+        action: "verified",
+        by: req.auth!.email,
+        at: new Date().toISOString(),
+        approvalStatus: payload.decision,
+        approvalBy: req.auth!.email,
+        approvalAt: new Date().toISOString(),
+        approvalRemarks: payload.remarks ?? null
+      }
+    ];
+
+    const verified = await prisma.workflowInstance.update({
+      where: { id: existing.id },
+      data: {
+        status: payload.decision,
+        currentStep: payload.decision === "APPROVED" ? "approved_by_accounts" : "rejected_by_accounts",
+        historyJson: nextHistory as Prisma.InputJsonValue
+      }
+    });
+
+    res.json({
+      id: verified.id,
+      status: verified.status,
+      currentStep: verified.currentStep,
+      message: payload.decision === "APPROVED" ? "Fee statement approval approved by accounts." : "Fee statement approval rejected by accounts."
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+portalRoutes.post("/assignments/:assignmentId/submit", authenticate, async (req, res, next) => {
+  try {
+    const payload = assignmentSubmissionSchema.parse(req.body);
+    const schoolId = req.auth!.schoolId;
+    const assignmentId = typeof req.params.assignmentId === "string" ? req.params.assignmentId : undefined;
+
+    if (!assignmentId) {
+      return res.status(400).json({ error: "Invalid assignment id" });
+    }
+
+    const assignment = await prisma.workflowInstance.findFirst({
+      where: { id: assignmentId, schoolId, workflowKey: "assignment" },
+      select: { id: true, title: true }
+    });
+
+    if (!assignment) {
+      return res.status(404).json({ error: "Assignment not found" });
+    }
+
+    const dataBytes = getDataBytes(payload.fileData);
+    if (dataBytes > maxAssignmentAttachmentBytes) {
+      return res.status(400).json({ error: "Submission file is too large. Max allowed size is 3MB." });
+    }
+
+    const submission = await prisma.workflowInstance.create({
+      data: {
+        schoolId,
+        workflowKey: "assignment-submission",
+        title: `Submission: ${assignment.title}`,
+        status: "PENDING",
+        currentStep: "pending_teacher_review",
+        historyJson: [
+          {
+            action: "submitted",
+            by: req.auth!.email,
+            at: new Date().toISOString(),
+            assignmentId: assignment.id,
+            fileName: payload.fileName,
+            fileType: payload.fileType,
+            fileData: payload.fileData,
+            notes: payload.notes ?? null,
+            reviewStatus: "PENDING",
+            reviewBy: null,
+            reviewAt: null,
+            reviewRemarks: null,
+            reviewGrade: null
+          }
+        ]
+      }
+    });
+
+    res.status(201).json({
+      id: submission.id,
+      message: "Assignment submitted successfully. Pending teacher review.",
+      status: submission.status
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+portalRoutes.get("/assignment-submissions", authenticate, async (req, res, next) => {
+  try {
+    const query = querySchema.parse(req.query);
+    const schoolId = req.auth!.schoolId;
+
+    const submissions = await prisma.workflowInstance.findMany({
+      where: {
+        schoolId,
+        workflowKey: "assignment-submission"
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200
+    });
+
+    const normalized = submissions.map((submission) => {
+      const history = Array.isArray(submission.historyJson) ? submission.historyJson as Array<Record<string, unknown>> : [];
+      const firstEntry = history[0] ?? {};
+      const latestEntry = history[history.length - 1] ?? firstEntry;
+
+      return {
+        id: submission.id,
+        title: submission.title,
+        status: submission.status,
+        currentStep: submission.currentStep,
+        createdAt: submission.createdAt,
+        updatedAt: submission.updatedAt,
+        assignmentId: typeof firstEntry.assignmentId === "string" ? firstEntry.assignmentId : null,
+        fileName: typeof firstEntry.fileName === "string" ? firstEntry.fileName : null,
+        fileType: typeof firstEntry.fileType === "string" ? firstEntry.fileType : null,
+        submittedBy: typeof firstEntry.by === "string" ? firstEntry.by : null,
+        notes: typeof firstEntry.notes === "string" ? firstEntry.notes : null,
+        reviewStatus: typeof latestEntry.reviewStatus === "string" ? latestEntry.reviewStatus : "PENDING",
+        reviewBy: typeof latestEntry.reviewBy === "string" ? latestEntry.reviewBy : null,
+        reviewAt: typeof latestEntry.reviewAt === "string" ? latestEntry.reviewAt : null,
+        reviewRemarks: typeof latestEntry.reviewRemarks === "string" ? latestEntry.reviewRemarks : null,
+        reviewGrade: typeof latestEntry.reviewGrade === "string" ? latestEntry.reviewGrade : null
+      };
+    });
+
+    res.json(normalized);
+  } catch (error) {
+    next(error);
+  }
+});
+
+portalRoutes.post("/assignment-submissions/:id/review", authenticate, authorize(["TEACHER", "SUPER_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"]), async (req, res, next) => {
+  try {
+    const reviewSchema = z.object({
+      decision: z.enum(["APPROVED", "REJECTED"]),
+      grade: z.string().optional(),
+      remarks: z.string().max(500).optional()
+    });
+
+    const payload = reviewSchema.parse(req.body);
+    const schoolId = req.auth!.schoolId;
+    const submissionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    if (!submissionId) {
+      return res.status(400).json({ error: "Invalid submission id" });
+    }
+
+    const existing = await prisma.workflowInstance.findFirst({
+      where: {
+        id: submissionId,
+        schoolId,
+        workflowKey: "assignment-submission"
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Assignment submission not found" });
+    }
+
+    const previousHistory = Array.isArray(existing.historyJson)
+      ? existing.historyJson as Array<Record<string, unknown>>
+      : [];
+
+    const nextHistory = [
+      ...previousHistory,
+      {
+        action: "reviewed",
+        by: req.auth!.email,
+        at: new Date().toISOString(),
+        reviewStatus: payload.decision,
+        reviewBy: req.auth!.email,
+        reviewAt: new Date().toISOString(),
+        reviewRemarks: payload.remarks ?? null,
+        reviewGrade: payload.grade ?? null
+      }
+    ];
+
+    const reviewed = await prisma.workflowInstance.update({
+      where: { id: existing.id },
+      data: {
+        status: payload.decision,
+        currentStep: payload.decision === "APPROVED" ? "approved_by_teacher" : "rejected_by_teacher",
+        historyJson: nextHistory as Prisma.InputJsonValue
+      }
+    });
+
+    res.json({
+      id: reviewed.id,
+      status: reviewed.status,
+      currentStep: reviewed.currentStep,
+      message: payload.decision === "APPROVED" ? "Assignment approved by teacher." : "Assignment rejected by teacher."
+    });
   } catch (error) {
     next(error);
   }
