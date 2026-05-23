@@ -1,8 +1,6 @@
-import { app } from "../server/src/app";
+let appPromise;
 
-type QueryValue = string | string[] | undefined;
-
-function first(value: QueryValue): string | undefined {
+function first(value) {
   if (Array.isArray(value)) {
     return value[0];
   }
@@ -10,7 +8,15 @@ function first(value: QueryValue): string | undefined {
   return value;
 }
 
-export default function handler(req: any, res: any) {
+async function getApp() {
+  if (!appPromise) {
+    appPromise = import("../server/src/app.js").then((mod) => mod.app);
+  }
+
+  return appPromise;
+}
+
+module.exports = async function handler(req, res) {
   const path = first(req.query?.path);
 
   if (typeof path === "string" && path.length > 0) {
@@ -36,5 +42,6 @@ export default function handler(req: any, res: any) {
     req.url = "/api";
   }
 
+  const app = await getApp();
   return app(req, res);
-}
+};
