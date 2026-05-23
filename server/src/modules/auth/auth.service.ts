@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import type { SystemRole } from "@sms/shared";
+import type { SystemRole } from "../../types/auth.js";
 import { prisma } from "../../prisma/client.js";
 import { signAccessToken, signRefreshToken } from "../../utils/tokens.js";
 import { env } from "../../config/env.js";

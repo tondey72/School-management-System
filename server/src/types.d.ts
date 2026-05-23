@@ -1,4 +1,4 @@
-import type { SystemRole } from "@sms/shared";
+import type { SystemRole } from "./types/auth.js";
 
 declare global {
   namespace Express {

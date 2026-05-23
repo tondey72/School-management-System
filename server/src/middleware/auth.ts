@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import type { JwtClaims, SystemRole } from "@sms/shared";
+import type { JwtClaims, SystemRole } from "../types/auth.js";
 import { env } from "../config/env.js";
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {

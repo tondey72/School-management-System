@@ -3,24 +3,9 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { authenticate, authorize } from "../../middleware/auth.js";
 import { prisma } from "../../prisma/client.js";
+import { SYSTEM_ROLES } from "../../types/auth.js";
 
 export const usersRoutes = Router();
-
-const SYSTEM_ROLES = [
-  "SUPER_ADMIN",
-  "SCHOOL_ADMIN",
-  "PRINCIPAL",
-  "VICE_PRINCIPAL",
-  "TEACHER",
-  "STUDENT",
-  "PARENT",
-  "ACCOUNTANT",
-  "LIBRARIAN",
-  "HR_OFFICER",
-  "REGISTRAR",
-  "HOSTEL_WARDEN",
-  "TRANSPORT_MANAGER"
-] as const;
 
 const createUserSchema = z.object({
   email: z.string().email(),

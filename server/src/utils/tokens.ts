@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import type { JwtClaims } from "@sms/shared";
+import type { JwtClaims } from "../types/auth.js";
 import { env } from "../config/env.js";
 
 export function signAccessToken(claims: JwtClaims): string {
