@@ -1,6 +1,6 @@
 {
   "installCommand": "npm ci",
-  "buildCommand": "if [ -f client/package.json ]; then npm run build --workspace client && rm -rf dist && cp -R client/dist dist; else npm run build; fi",
+  "buildCommand": "npm run prisma:generate --workspace server && if [ -f client/package.json ]; then npm run build --workspace client && rm -rf dist && cp -R client/dist dist; else npm run build; fi",
   "outputDirectory": "dist",
   "rewrites": [
     {
