@@ -18,6 +18,7 @@ import { ClassroomsPage } from "./pages/ClassroomsPage";
 import { BillingPage } from "./pages/BillingPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { OrganizationPage } from "./pages/OrganizationPage";
+import { CommentsPage } from "./pages/CommentsPage";
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/library" element={<LibraryPage />} />
+          <Route path="/comments" element={<CommentsPage />} />
           <Route path="/portal" element={<PortalPage />} />
           <Route path="/workflow" element={<WorkflowPage />} />
           <Route path="/transport" element={<TransportPage />} />

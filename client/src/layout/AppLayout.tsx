@@ -1,4 +1,4 @@
-import { Bell, BookOpenText, Bot, Bus, CalendarCheck, ClipboardCheck, ClipboardList, Cog, DollarSign, GraduationCap, Home, School, Settings, ShieldUser, UserCircle2, Users, Workflow } from "lucide-react";
+import { Bell, BookOpenText, Bot, Bus, CalendarCheck, ClipboardCheck, ClipboardList, Cog, DollarSign, GraduationCap, Home, MessageSquare, School, Settings, ShieldUser, UserCircle2, Users, Workflow } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useTheme } from "@/hooks/useTheme";
@@ -12,6 +12,7 @@ const items = [
   { to: "/classrooms", label: "Classrooms", icon: School },
   { to: "/academics", label: "Academics", icon: BookOpenText },
   { to: "/library", label: "E-Library", icon: BookOpenText },
+  { to: "/comments", label: "Comments", icon: MessageSquare },
   { to: "/attendance", label: "Attendance", icon: CalendarCheck },
   { to: "/exams", label: "Exams", icon: ClipboardCheck },
   { to: "/finance", label: "Finance", icon: DollarSign },

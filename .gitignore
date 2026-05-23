@@ -9,3 +9,5 @@ build
 coverage
 .vscode
 .DS_Store
+.vercel
+.env*

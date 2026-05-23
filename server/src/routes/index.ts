@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { authRoutes } from "../modules/auth/auth.routes.js";
 import { dashboardRoutes } from "../modules/dashboard/dashboard.routes.js";
 import { studentsRoutes } from "../modules/students/students.routes.js";
@@ -37,6 +38,10 @@ import { redis } from "../config/redis.js";
 
 export const apiRoutes = Router();
 
+const createCommentSchema = z.object({
+  comment: z.string().trim().min(1).max(1000)
+});
+
 apiRoutes.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -63,6 +68,25 @@ apiRoutes.get("/health/ready", async (_req, res) => {
       message: error instanceof Error ? error.message : "Dependency check failed",
       timestamp: new Date().toISOString()
     });
+  }
+});
+
+apiRoutes.get("/comments", async (_req, res, next) => {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ comment: string }>>`SELECT comment FROM comments ORDER BY ctid DESC LIMIT 100`;
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRoutes.post("/comments", async (req, res, next) => {
+  try {
+    const payload = createCommentSchema.parse(req.body);
+    await prisma.$executeRaw`INSERT INTO comments (comment) VALUES (${payload.comment})`;
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    next(error);
   }
 });
 

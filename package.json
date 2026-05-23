@@ -15,5 +15,8 @@
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "seed": "npm run prisma:seed --workspace server"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0"
   }
 }
