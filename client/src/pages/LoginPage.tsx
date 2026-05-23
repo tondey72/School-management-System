@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { isAxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
@@ -19,8 +20,12 @@ export function LoginPage() {
     try {
       await login(email, password);
       navigate("/dashboard", { replace: true });
-    } catch {
-      setError("Login failed. Verify credentials and try again.");
+    } catch (error) {
+      if (isAxiosError(error) && typeof error.response?.data?.message === "string") {
+        setError(error.response.data.message);
+      } else {
+        setError("Login failed. Verify credentials and try again.");
+      }
     } finally {
       setSubmitting(false);
     }
