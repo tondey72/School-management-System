@@ -120,6 +120,22 @@ export function PortalPage() {
   const [uploadingPop, setUploadingPop] = useState(false);
   const [profileStatus, setProfileStatus] = useState("");
   const [uploadingProfilePhotoFor, setUploadingProfilePhotoFor] = useState<string | null>(null);
+  const [showFeeStatementApprovalDialog, setShowFeeStatementApprovalDialog] = useState(false);
+  const [selectedInvoiceForApproval, setSelectedInvoiceForApproval] = useState<FeeStatement | null>(null);
+  const [approvalFileName, setApprovalFileName] = useState("");
+  const [approvalFileType, setApprovalFileType] = useState("");
+  const [approvalFileData, setApprovalFileData] = useState("");
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const [approvalStatus, setApprovalStatus] = useState("");
+  const [uploadingApproval, setUploadingApproval] = useState(false);
+  const [showAssignmentSubmissionDialog, setShowAssignmentSubmissionDialog] = useState(false);
+  const [selectedAssignmentForSubmission, setSelectedAssignmentForSubmission] = useState<PortalAssignment | null>(null);
+  const [submissionFileName, setSubmissionFileName] = useState("");
+  const [submissionFileType, setSubmissionFileType] = useState("");
+  const [submissionFileData, setSubmissionFileData] = useState("");
+  const [submissionNotes, setSubmissionNotes] = useState("");
+  const [submissionStatus, setSubmissionStatus] = useState("");
+  const [uploadingSubmission, setUploadingSubmission] = useState(false);
 
   const canManagePortalContent = ["SUPER_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "TEACHER", "REGISTRAR"].includes(user?.role ?? "");
 
@@ -336,6 +352,112 @@ export function PortalPage() {
     }
   };
 
+  const openFeeStatementApprovalDialog = (invoice: FeeStatement) => {
+    setSelectedInvoiceForApproval(invoice);
+    setApprovalNotes("");
+    setApprovalFileName("");
+    setApprovalFileType("");
+    setApprovalFileData("");
+    setApprovalStatus("");
+    setShowFeeStatementApprovalDialog(true);
+  };
+
+  const onApprovalFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setApprovalFileName(file.name);
+    setApprovalFileType(file.type || "application/octet-stream");
+    const reader = new FileReader();
+    reader.onload = () => {
+      setApprovalFileData(String(reader.result ?? ""));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadFeeStatementApproval = async () => {
+    if (!selectedInvoiceForApproval) {
+      return;
+    }
+
+    if (!approvalFileData || !approvalFileName) {
+      setApprovalStatus("Please choose a file first.");
+      return;
+    }
+
+    try {
+      setUploadingApproval(true);
+      const response = await api.post<PopUploadResponse>(`/portal/fee-statements/${selectedInvoiceForApproval.id}/approval-upload`, {
+        fileName: approvalFileName,
+        fileType: approvalFileType,
+        fileData: approvalFileData,
+        notes: approvalNotes || undefined
+      });
+      setApprovalStatus(response.data.message || "Fee statement approval uploaded.");
+      setShowFeeStatementApprovalDialog(false);
+      await loadData(selectedStudentId || undefined);
+    } catch {
+      setApprovalStatus("Failed to upload fee statement approval. Try again.");
+    } finally {
+      setUploadingApproval(false);
+    }
+  };
+
+  const openAssignmentSubmissionDialog = (assignment: PortalAssignment) => {
+    setSelectedAssignmentForSubmission(assignment);
+    setSubmissionNotes("");
+    setSubmissionFileName("");
+    setSubmissionFileType("");
+    setSubmissionFileData("");
+    setSubmissionStatus("");
+    setShowAssignmentSubmissionDialog(true);
+  };
+
+  const onSubmissionFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setSubmissionFileName(file.name);
+    setSubmissionFileType(file.type || "application/octet-stream");
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSubmissionFileData(String(reader.result ?? ""));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadAssignmentSubmission = async () => {
+    if (!selectedAssignmentForSubmission) {
+      return;
+    }
+
+    if (!submissionFileData || !submissionFileName) {
+      setSubmissionStatus("Please choose a file first.");
+      return;
+    }
+
+    try {
+      setUploadingSubmission(true);
+      const response = await api.post<PopUploadResponse>(`/portal/assignments/${selectedAssignmentForSubmission.id}/submit`, {
+        fileName: submissionFileName,
+        fileType: submissionFileType,
+        fileData: submissionFileData,
+        notes: submissionNotes || undefined
+      });
+      setSubmissionStatus(response.data.message || "Assignment submitted.");
+      setShowAssignmentSubmissionDialog(false);
+      await loadData(selectedStudentId || undefined);
+    } catch {
+      setSubmissionStatus("Failed to submit assignment. Try again.");
+    } finally {
+      setUploadingSubmission(false);
+    }
+  };
+
   return (
     <section className="space-y-6">
       <header>
@@ -466,6 +588,7 @@ export function PortalPage() {
               <th className="pb-2">Due Date</th>
               <th className="pb-2">Status</th>
               <th className="pb-2">POP</th>
+              <th className="pb-2">Approval</th>
             </tr>
           </thead>
           <tbody>
@@ -481,11 +604,17 @@ export function PortalPage() {
                     Upload POP
                   </button>
                 </td>
+                <td className="py-2">
+                  <button className="rounded-lg border border-blue-500 px-2 py-1 text-xs text-blue-600" type="button" onClick={() => openFeeStatementApprovalDialog(item)}>
+                    Upload Approval
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
         {popStatus ? <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">{popStatus}</p> : null}
+        {approvalStatus ? <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">{approvalStatus}</p> : null}
       </div>
 
       {showPopDialog && selectedInvoiceForPop ? (
@@ -499,6 +628,40 @@ export function PortalPage() {
               <div className="flex gap-2">
                 <button className="rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" type="button" disabled={uploadingPop} onClick={uploadPop}>{uploadingPop ? "Uploading..." : "Upload"}</button>
                 <button className="rounded-xl border border-[hsl(var(--border))] px-3 py-2 text-sm" type="button" onClick={() => setShowPopDialog(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showFeeStatementApprovalDialog && selectedInvoiceForApproval ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <h4 className="font-heading text-lg font-bold">Upload Fee Statement Approval</h4>
+            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Invoice: {selectedInvoiceForApproval.invoiceNo}</p>
+            <div className="mt-4 space-y-3">
+              <input className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2" type="file" accept=".pdf,.doc,.docx" onChange={onApprovalFileChange} />
+              <textarea className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2" rows={3} placeholder="Notes (optional)" value={approvalNotes} onChange={(event) => setApprovalNotes(event.target.value)} />
+              <div className="flex gap-2">
+                <button className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" type="button" disabled={uploadingApproval} onClick={uploadFeeStatementApproval}>{uploadingApproval ? "Uploading..." : "Upload"}</button>
+                <button className="rounded-xl border border-[hsl(var(--border))] px-3 py-2 text-sm" type="button" onClick={() => setShowFeeStatementApprovalDialog(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAssignmentSubmissionDialog && selectedAssignmentForSubmission ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <h4 className="font-heading text-lg font-bold">Submit Assignment</h4>
+            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Assignment: {selectedAssignmentForSubmission.title}</p>
+            <div className="mt-4 space-y-3">
+              <input className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2" type="file" accept=".pdf,.doc,.docx" onChange={onSubmissionFileChange} />
+              <textarea className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2" rows={3} placeholder="Notes (optional)" value={submissionNotes} onChange={(event) => setSubmissionNotes(event.target.value)} />
+              <div className="flex gap-2">
+                <button className="rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" type="button" disabled={uploadingSubmission} onClick={uploadAssignmentSubmission}>{uploadingSubmission ? "Submitting..." : "Submit"}</button>
+                <button className="rounded-xl border border-[hsl(var(--border))] px-3 py-2 text-sm" type="button" onClick={() => setShowAssignmentSubmissionDialog(false)}>Cancel</button>
               </div>
             </div>
           </div>
@@ -532,13 +695,23 @@ export function PortalPage() {
           {assignmentError ? <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">{assignmentError}</p> : null}
           {assignmentSuccess ? <p className="rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-600">{assignmentSuccess}</p> : null}
           <button className="rounded-xl bg-brand px-3 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={!canManagePortalContent || publishingAssignment} type="button" onClick={publishAssignment}>{publishingAssignment ? "Publishing..." : "Publish"}</button>
+        </div>
+
+        <div className="card-surface space-y-3 p-4">
+          <h3 className="font-heading text-lg font-bold">Assignments</h3>
           <input className="w-full rounded-xl border border-[hsl(var(--border))] bg-transparent px-3 py-2" placeholder="Search assignments" value={assignmentSearch} onChange={(event) => { setAssignmentSearch(event.target.value); setAssignmentVisibleCount(5); }} />
           <p className="text-xs text-[hsl(var(--muted-foreground))]">Showing {Math.min(assignmentVisibleCount, filteredAssignments.length)} of {filteredAssignments.length} assignments</p>
-          <ul className="space-y-1 text-sm">
+          <ul className="space-y-2">
             {filteredAssignments.slice(0, assignmentVisibleCount).map((item) => (
-              <li key={item.id}>{item.title} - {item.status}</li>
+              <li key={item.id} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] p-2 text-sm">
+                <span>{item.title} - {item.status}</span>
+                <button className="rounded-lg border border-green-500 px-2 py-1 text-xs text-green-600" type="button" onClick={() => openAssignmentSubmissionDialog(item)}>
+                  Submit
+                </button>
+              </li>
             ))}
           </ul>
+          {submissionStatus ? <p className="text-sm text-[hsl(var(--muted-foreground))]">{submissionStatus}</p> : null}
           {assignmentVisibleCount < filteredAssignments.length ? <button className="rounded-xl border border-[hsl(var(--border))] px-3 py-2 text-sm" type="button" onClick={() => setAssignmentVisibleCount((current) => current + 5)}>Load 5 more</button> : null}
         </div>
       </div>
